@@ -1,6 +1,7 @@
 import { Context, Dict, h, Logger, Session } from 'koishi'
 import type { PyProxy } from 'pyodide'
 import { extractText, Parameter, take, unwrap } from './utils'
+import type { NoneBot } from '../index'
 
 const logger = new Logger('nonebot')
 
@@ -33,16 +34,17 @@ export class BaseMatcher {
   protected callbacks: (() => Promise<void>)[] = []
   protected message: string
   protected capture: RegExpExecArray
+  protected nonebot: NoneBot
 
   protected getters = {
     Bot: () => {
-      const { Bot } = this.ctx.nonebot.python.pyimport('nonebot.adapters.onebot.v11')
+      const { Bot } = this.nonebot.python.pyimport('nonebot.adapters.onebot.v11')
       return Bot(this.session.bot, (data) => {
         return unwrap(data)
       })
     },
     Event: () => {
-      const module = this.ctx.nonebot.python.pyimport('nonebot.adapters.onebot.v11')
+      const module = this.nonebot.python.pyimport('nonebot.adapters.onebot.v11')
       const constructor = this.session.type === 'message'
         ? this.session.guildId ? module.GroupMessageEvent : module.PrivateMessageEvent
         : module.Event
@@ -52,7 +54,7 @@ export class BaseMatcher {
     Matcher: (): BaseMatcher => this,
     ArgStr: ([name]: string[]) => this.state.get(name),
     CommandArg: () => {
-      const { create_message } = this.ctx.nonebot.python.pyimport('nonebot.adapters.onebot.v11')
+      const { create_message } = this.nonebot.python.pyimport('nonebot.adapters.onebot.v11')
       return create_message(h.parse(this.message))
     },
     RegexGroup: () => this.capture.slice(1),
@@ -62,6 +64,7 @@ export class BaseMatcher {
   }
 
   constructor(protected ctx: Context, kwargs: any = {}) {
+    this.nonebot = ctx.get("nonebot")
     if (kwargs.handlers) {
       for (const handler of unwrap(kwargs.handlers)) {
         this.append_handler(handler)
